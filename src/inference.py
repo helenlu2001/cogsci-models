@@ -139,8 +139,8 @@ for test_experiment in EXPERIMENTS:
     train, test = pd.concat([datasets[e] for e in splits['train']]), pd.concat([datasets[e] for e in splits['test']])
 
     # Train and evaluate the model
-    # test_completion(logger, train, test)
-    test_planning(logger, train, test)
+    test_completion(logger, train, test)
+    # test_planning(logger, train, test)
 
 print('Overall results')
 logger.print()
