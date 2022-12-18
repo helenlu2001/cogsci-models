@@ -2,15 +2,15 @@
 import pandas as pd
 import itertools as it
 
+EXPERIMENTS = ['cookies', 'cat', 'laundry', 'apples']
+
 def read_form_b():
     form_b = pd.read_csv('../form-b.csv')
 
     # remove the extra columns and rows
     form_b = form_b.iloc[:,:-6] # remove delta columns
-    print(form_b.shape)
 
     # fix the column names to use hierarchical indexing
-    experiments = ['cookies', 'cat', 'laundry', 'apples']
     form_b_questions = [
         ('plan', 'time', 1), ('plan', 'time', 2), 
         ('complete', 'time', 1), ('complete', 'time', 2),
@@ -23,7 +23,7 @@ def read_form_b():
     form_b_columns = pd.MultiIndex.from_tuples(
         [(e,t,m,
             'main' if n in [form_b_expanded_toolset[i], 'main'] else 'other'
-        ) for (i,e),(t,m,n) in it.product(enumerate(experiments), form_b_questions)],
+        ) for (i,e),(t,m,n) in it.product(enumerate(EXPERIMENTS), form_b_questions)],
         names=['experiment', 'type', 'measurement', 'toolset'])
     form_b.columns = form_b_columns
     return form_b
