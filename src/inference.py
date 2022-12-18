@@ -45,7 +45,7 @@ for experiment in EXPERIMENTS:
 
 def test_completion(logger, train, test):
     """
-    Test the completion model.
+    Test the model predictions for completion
     """
     model = ThreeArrowModel()
     ## First two things are always calibrated
@@ -87,10 +87,44 @@ def test_completion(logger, train, test):
     ## Random model
     nlls_train = []
     nlls_test = []
-    for i in range(10000):
+    for _ in range(3000):
         model.ps['complete'] = np.random.rand(2,2)
         nlls_train.append(model.nll(train, 'complete'))
         nlls_test.append(model.nll(test, 'complete'))
+    logger.log('Random model NLL train', np.mean(nlls_train))
+    logger.log('Random model NLL test', np.mean(nlls_test))
+
+def test_planning(logger, train, test):
+    """
+    Test model predictions for planning.
+    """
+    model = ThreeArrowModel()
+    ## Execute is always calibrated
+    calibrate(model, train, 'execute')
+
+    # Calibrated model
+    calibrate(model, train, 'plan')
+    print('Calibrated parameters', model.ps)
+    logger.log('Calibrated model NLL train', model.nll(train, 'plan'))
+    logger.log('Calibrated model NLL test', model.nll(test, 'plan'))
+
+    # Independent model
+    def independent(x):
+        x = x.item()
+        model.ps['plan'] = np.array([x, x])
+        return model.nll(train, 'plan')
+    x0 = random_search(independent, (1,))
+    model.ps['plan'] = np.array([x0.item(), x0.item()])
+    logger.log('Independent model NLL train', model.nll(train, 'plan'))
+    logger.log('Independent model NLL test', model.nll(test, 'plan'))
+
+    # Random model
+    nlls_train = []
+    nlls_test = []
+    for _ in range(3000):
+        model.ps['plan'] = np.random.rand(2)
+        nlls_train.append(model.nll(train, 'plan'))
+        nlls_test.append(model.nll(test, 'plan'))
     logger.log('Random model NLL train', np.mean(nlls_train))
     logger.log('Random model NLL test', np.mean(nlls_test))
 
@@ -105,7 +139,8 @@ for test_experiment in EXPERIMENTS:
     train, test = pd.concat([datasets[e] for e in splits['train']]), pd.concat([datasets[e] for e in splits['test']])
 
     # Train and evaluate the model
-    test_completion(logger, train, test)
+    # test_completion(logger, train, test)
+    test_planning(logger, train, test)
 
 print('Overall results')
 logger.print()
