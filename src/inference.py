@@ -33,13 +33,16 @@ def calibrate(model, data, v):
 
 form_b = read_form_b()
 # Convert the data to probabilities
-calibrator = Converter()
+converter = Converter()
+plan_converter = Converter()
+plan_converter.halflife = 5 # minutes, plan time is much faster
+
 datasets = {}
 for experiment in EXPERIMENTS:
     data = {
-        'execute': calibrator.diff_to_prob(form_b[experiment]['execute']['difficulty']['main'].values),
-        'plan': calibrator.time_to_prob(form_b[experiment]['plan']['time']['main'].values),
-        'complete': calibrator.time_to_prob(form_b[experiment]['complete']['time']['main'].values)
+        'execute': converter.diff_to_prob(form_b[experiment]['execute']['difficulty']['main'].values),
+        'plan': plan_converter.time_to_prob(form_b[experiment]['plan']['time']['main'].values),
+        'complete': converter.time_to_prob(form_b[experiment]['complete']['time']['main'].values)
     }
     datasets[experiment] = pd.DataFrame(data)
 
@@ -139,8 +142,8 @@ for test_experiment in EXPERIMENTS:
     train, test = pd.concat([datasets[e] for e in splits['train']]), pd.concat([datasets[e] for e in splits['test']])
 
     # Train and evaluate the model
-    test_completion(logger, train, test)
-    # test_planning(logger, train, test)
+    # test_completion(logger, train, test)
+    test_planning(logger, train, test)
 
 print('Overall results')
 logger.print()

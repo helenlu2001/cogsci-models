@@ -28,7 +28,28 @@ def read_form_b():
     form_b.columns = form_b_columns
     return form_b
 
+def read_form_a():
+    form_a = pd.read_csv('../form-a.csv')
+    form_a = form_a.iloc[:71,:16] # remove delta columns
+    form_a_questions = [
+        ('complete', 'difficulty', 1), ('complete', 'difficulty', 2),
+        ('partial', 'difficulty', 'main'),
+        ('execute', 'difficulty', 'main'),
+    ]
+    form_a_expanded_toolset = [2,2,2,2]
+    form_a_columns = pd.MultiIndex.from_tuples(
+        [(e,t,m,
+            'main' if n in [form_a_expanded_toolset[i], 'main'] else 'other'
+        ) for (i,e),(t,m,n) in it.product(enumerate(EXPERIMENTS), form_a_questions)],
+        names=['experiment', 'type', 'measurement', 'toolset'])
+    form_a.columns = form_a_columns
+    return form_a
+
 if __name__ == '__main__':
-    form_b = read_form_b()
-    print(form_b.head())
-    print(form_b.columns)
+    # form_b = read_form_b()
+    # print(form_b.head())
+    # print(form_b.columns)
+
+    form_a = read_form_a()
+    print(form_a.head())
+    print(form_a.columns)
