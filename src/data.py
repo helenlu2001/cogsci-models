@@ -26,6 +26,10 @@ def read_form_b():
         ) for (i,e),(t,m,n) in it.product(enumerate(EXPERIMENTS), form_b_questions)],
         names=['experiment', 'type', 'measurement', 'toolset'])
     form_b.columns = form_b_columns
+    for c in form_b.columns:
+        if c[2] == 'prob':
+            # convert % to decimal
+            form_b[c] = form_b[c].apply(lambda x: float(x.strip('%')) / 100)
     return form_b
 
 def read_form_a():

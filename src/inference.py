@@ -1,10 +1,12 @@
-from model import ThreeArrowModel
+from model import ThreeArrowModel, planning_models, completion_models
 from calibration import Converter
 from data import read_form_b, EXPERIMENTS
 from logger import Logger
 
 import numpy as np
 import pandas as pd
+from functools import partial
+from scipy.special import logsumexp
 
 def random_search(func, shape, n_iter=3000):
     """ 
@@ -43,10 +45,12 @@ for experiment in EXPERIMENTS:
         'execute': converter.diff_to_prob(form_b[experiment]['execute']['difficulty']['main'].values),
         'plan': plan_converter.time_to_prob(form_b[experiment]['plan']['time']['main'].values),
         'complete': converter.time_to_prob(form_b[experiment]['complete']['time']['main'].values)
+        # 'plan': np.array(form_b[experiment]['plan']['prob']['main'].values),
+        # 'complete': np.array(form_b[experiment]['complete']['prob']['main'].values)
     }
     datasets[experiment] = pd.DataFrame(data)
 
-def test_completion(logger, train, test):
+def cv_completion(logger, train, test):
     """
     Test the model predictions for completion
     """
@@ -54,82 +58,70 @@ def test_completion(logger, train, test):
     ## First two things are always calibrated
     calibrate(model, train, 'execute')
     calibrate(model, train, 'plan')
+    for model_name, (model_fn, param_shape) in completion_models().items():
+        x0 = random_search(partial(model_fn, model, dataset=train), param_shape)
+        logger.log(f'{model_name} model NLL train', model_fn(model, x0, train))
+        logger.log(f'{model_name} model NLL test',  model_fn(model, x0, test))
 
-    # Calibrated model
-    calibrate(model, train, 'complete')
-    print('Calibrated parameters', model.ps)
-    logger.log('Calibrated model NLL train', model.nll(train, 'complete'))
-    logger.log('Calibrated model NLL test', model.nll(test, 'complete'))
+def evidence_completion(full):
+    model = ThreeArrowModel()
+    calibrate(model, full, 'execute')
+    calibrate(model, full, 'plan')
+    
+    all_nlls = {}
+    for model_name, (model_fn, param_shape) in completion_models().items():
+        nlls = []
+        for _ in range(10000):
+            x0 = np.random.rand(*param_shape)
+            n = model_fn(model, x0, full)
+            if n != np.inf:
+                nlls.append(n)
+        nll = - logsumexp(-np.array(nlls)) + np.log(len(nlls))
+        all_nlls[model_name] = nll
+        print(f'{model_name} model NLL', nll)
+    
+    # softmax
+    nlls = np.array(list(all_nlls.values()))
+    base = - logsumexp(-nlls)
+    for model_name, nll in all_nlls.items():
+        print(f'{model_name} model relative likelihood', np.exp(base - nll))
 
-    ## Human prior, 
-    ## Here we assume that a low probability of completing the task if we didn't plan or didn't execute
-    def human_prior(x):
-        low, high = x
-        if low > high:
-            return np.inf
-        model.ps['complete'] = np.array([[low, low], [low, high]]) # complete iff plan and execute
-        return model.nll(train, 'complete')
-    x0 = random_search(human_prior, (2,))
-    model.ps['complete'] = np.array([[x0[0], x0[0]], [x0[0], x0[1]]])
-    logger.log('Intuitive model NLL train', model.nll(train, 'complete'))
-    logger.log('Intuitive model NLL test', model.nll(test, 'complete'))
-
-    ## No-plan model
-    ## Here we assume that completing the task is independent of completing the planning
-    def no_plan(x):
-        low, high = x
-        if low > high:
-            return np.inf
-        model.ps['complete'] = np.array([[low, low], [high, high]])
-        return model.nll(train, 'complete')
-    x0 = random_search(no_plan, (2,))
-    model.ps['complete'] = np.array([[x0[0], x0[0]], [x0[1], x0[1]]])
-    logger.log('No-plan model NLL train', model.nll(train, 'complete'))
-    logger.log('No-plan model NLL test', model.nll(test, 'complete'))
-
-    ## Random model
-    nlls_train = []
-    nlls_test = []
-    for _ in range(3000):
-        model.ps['complete'] = np.random.rand(2,2)
-        nlls_train.append(model.nll(train, 'complete'))
-        nlls_test.append(model.nll(test, 'complete'))
-    logger.log('Random model NLL train', np.mean(nlls_train))
-    logger.log('Random model NLL test', np.mean(nlls_test))
-
-def test_planning(logger, train, test):
+def cv_planning(logger, train, test):
     """
     Test model predictions for planning.
     """
     model = ThreeArrowModel()
     ## Execute is always calibrated
     calibrate(model, train, 'execute')
+    for model_name, (model_fn, param_shape) in planning_models().items():
+        x0 = random_search(partial(model_fn, model, dataset=train), param_shape)
+        logger.log(f'{model_name} model NLL train', model_fn(model, x0, train))
+        logger.log(f'{model_name} model NLL test',  model_fn(model, x0, test))
 
-    # Calibrated model
-    calibrate(model, train, 'plan')
-    print('Calibrated parameters', model.ps)
-    logger.log('Calibrated model NLL train', model.nll(train, 'plan'))
-    logger.log('Calibrated model NLL test', model.nll(test, 'plan'))
+def evidence_planning(full):
+    """
+    Evidence for planning models.
+    """
+    model = ThreeArrowModel()
+    calibrate(model, full, 'execute')
 
-    # Independent model
-    def independent(x):
-        x = x.item()
-        model.ps['plan'] = np.array([x, x])
-        return model.nll(train, 'plan')
-    x0 = random_search(independent, (1,))
-    model.ps['plan'] = np.array([x0.item(), x0.item()])
-    logger.log('Independent model NLL train', model.nll(train, 'plan'))
-    logger.log('Independent model NLL test', model.nll(test, 'plan'))
-
-    # Random model
-    nlls_train = []
-    nlls_test = []
-    for _ in range(3000):
-        model.ps['plan'] = np.random.rand(2)
-        nlls_train.append(model.nll(train, 'plan'))
-        nlls_test.append(model.nll(test, 'plan'))
-    logger.log('Random model NLL train', np.mean(nlls_train))
-    logger.log('Random model NLL test', np.mean(nlls_test))
+    all_nlls = {}
+    for model_name, (model_fn, param_shape) in planning_models().items():
+        nlls = []
+        for _ in range(10000):
+            x0 = np.random.rand(*param_shape)
+            n = model_fn(model, x0, full)
+            if n != np.inf:
+                nlls.append(n)
+        nll = - logsumexp(-np.array(nlls)) + np.log(len(nlls))
+        all_nlls[model_name] = nll
+        print(f'{model_name} model NLL', nll)
+    
+    # softmax
+    nlls = np.array(list(all_nlls.values()))
+    base = - logsumexp(-nlls)
+    for model_name, nll in all_nlls.items():
+        print(f'{model_name} model relative likelihood', np.exp(base - nll))
 
 # Split the data into train and test
 logger = Logger()
@@ -142,8 +134,15 @@ for test_experiment in EXPERIMENTS:
     train, test = pd.concat([datasets[e] for e in splits['train']]), pd.concat([datasets[e] for e in splits['test']])
 
     # Train and evaluate the model
-    # test_completion(logger, train, test)
-    test_planning(logger, train, test)
+    cv_completion(logger, train, test)
+    # cv_planning(logger, train, test)
 
-print('Overall results')
+print('Final CV results')
 logger.print()
+
+full = pd.concat(datasets.values())
+# evidence_completion(full)
+# evidence_planning(full)
+
+
+## Evidence (likelihood of data with random parameters)

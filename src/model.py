@@ -39,4 +39,52 @@ class ThreeArrowModel():
     def nll_function(self, predicted, target):
         return -np.sum(target * np.log(predicted) + (1-target) * np.log(1-predicted))
 
+def planning_models():
+    # Consideration model
+    def consideration(model, x, dataset=None):
+        if x[0] > x[1]:
+            return np.inf
+        model.ps['plan'] = x
+        return model.nll(dataset, 'plan')
+    
+    # Independent model
+    def independent(model, x, dataset=None):
+        x = x.item()
+        model.ps['plan'] = np.array([x, x])
+        return model.nll(dataset, 'plan')
+    
+    return {
+        'Consideration': (consideration, (2,)),
+        'Independent': (independent, (1,))
+    }
+
+def completion_models():
+    # Arbitary dependence model
+    def no_prior(model, x, dataset=None):
+        model.ps['complete'] = x
+        return model.nll(dataset, 'complete')
+
+    ## Human prior, 
+    ## Here we assume that a low probability of completing the task if we didn't plan or didn't execute
+    def human_prior(model, x, dataset=None):
+        low, high = x
+        if low > high:
+            return np.inf
+        model.ps['complete'] = np.array([[low, low], [low, high]]) # complete iff plan and execute
+        return model.nll(dataset, 'complete')
+
+    ## No-plan model
+    ## Here we assume that completing the task is independent of completing the planning
+    def no_plan(model, x, dataset=None):
+        low, high = x
+        if low > high:
+            return np.inf
+        model.ps['complete'] = np.array([[low, low], [high, high]])
+        return model.nll(dataset, 'complete')
+
+    return {
+        'No-prior': (no_prior, (2,2)),
+        'Intuitive': (human_prior, (2,)),
+        'No-plan': (no_plan, (2,))
+    }
 
