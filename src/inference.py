@@ -42,6 +42,7 @@ plan_converter.halflife = 5 # minutes, plan time is much faster
 datasets = {}
 for experiment in EXPERIMENTS:
     data = {
+        'partial': converter.diff_to_prob(form_b[experiment]['partial']['difficulty']['main'].values),
         'execute': converter.diff_to_prob(form_b[experiment]['execute']['difficulty']['main'].values),
         'plan': plan_converter.time_to_prob(form_b[experiment]['plan']['time']['main'].values),
         'complete': converter.time_to_prob(form_b[experiment]['complete']['time']['main'].values)
@@ -134,8 +135,8 @@ for test_experiment in EXPERIMENTS:
     train, test = pd.concat([datasets[e] for e in splits['train']]), pd.concat([datasets[e] for e in splits['test']])
 
     # Train and evaluate the model
-    cv_completion(logger, train, test)
-    # cv_planning(logger, train, test)
+    # cv_completion(logger, train, test)
+    cv_planning(logger, train, test)
 
 print('Final CV results')
 logger.print()

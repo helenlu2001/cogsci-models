@@ -24,40 +24,51 @@ class Converter():
     def diff_to_prob(self, diff):
         return 1 - (diff-1) / 9 # 1-10 -> 0-1
 
-def calibrate_diff_to_time():
+def calibrate_completion_diff():
     converter = Converter()
     form_a = read_form_a()
     form_b = read_form_b()
     data = []
     for experiment in EXPERIMENTS:
         for toolset in ['main', 'other']:
-            print(form_a[experiment]['complete']['difficulty'][toolset])
             data.append((
-                np.mean(form_a[experiment]['complete']['difficulty'][toolset].values),
-                np.median(converter.time_fix(form_b[experiment]['complete']['time'][toolset].values))
+                np.mean(form_b[experiment]['complete']['prob'][toolset].values),
+                np.mean(converter.diff_to_prob(form_a[experiment]['complete']['difficulty'][toolset].values)),
             ))
     data = np.array(data)
-    print(data)
-    plt.scatter(data[:,0], data[:,1])
-    plt.savefig('diff_to_time.png')
+    plt.subplots()
+    plt.scatter(data[:,0], data[:,1], label='data')
+    plt.plot(np.linspace(0,1,100), np.linspace(0,1,100), color='red', linestyle='--', label='y=x')
+    plt.legend()
+    plt.xlabel('completion probability')
+    plt.ylabel('estimated completion probability (difficulty)')
+    plt.title('difficulty to probability conversion')
+    plt.savefig('completion_diff.png')
 
-def calibrate_plan_times():
+def calibrate_completion_times():
     converter = Converter()
-    converter.halflife = 10
+    converter.halflife = 60
     form_b = read_form_b()
     data = []
     for experiment in EXPERIMENTS:
         for toolset in ['main', 'other']:
             data.append((
-                form_b[experiment]['plan']['prob'][toolset].values + 0.1,
-                converter.time_to_prob(form_b[experiment]['plan']['time'][toolset].values)
+                np.mean(form_b[experiment]['complete']['prob'][toolset].values),
+                np.mean(converter.time_to_prob(form_b[experiment]['complete']['time'][toolset].values))
             ))
     data = np.array(data)
-    data = data.transpose(1,0,2).reshape(2, -1)
-    plt.scatter(data[0], data[1])
-    plt.savefig('plan_times.png')
+    # data = data.transpose(1,0,2).reshape(2, -1)
+    # plt.scatter(data[0], data[1])
+    plt.subplots()
+    plt.scatter(data[:,0], data[:,1], label='data')
+    plt.plot(np.linspace(0,1,100), np.linspace(0,1,100), color='red', linestyle='--', label='y=x')
+    plt.legend()
+    plt.xlabel('completion probability')
+    plt.ylabel('estimated completion probability (time)')
+    plt.title('time to probability conversion')
+    plt.savefig('completion_times.png')
 
 if __name__ == '__main__':
-    # calibrate_diff_to_time()
-    calibrate_plan_times()
+    calibrate_completion_diff()
+    calibrate_completion_times()
     
